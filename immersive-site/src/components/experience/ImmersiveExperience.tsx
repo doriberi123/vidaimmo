@@ -3,22 +3,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./ImmersiveExperience.module.css";
 
-const VIDEO_FIRST = "/assets/VIDA_LOBBY_V2_SCROLL.mp4";
-const VIDEO_SECOND =
-  "/assets/hf_20260515_190916_e335e8ef-1dcd-4b5f-ae12-a340cec6ec55_SCROLL.mp4";
+const VIDEOS = [
+  "/assets/VIDA_LOBBY_V2_SCROLL.mp4",
+  "/assets/hf_20260515_190916_e335e8ef-1dcd-4b5f-ae12-a340cec6ec55_SCROLL.mp4",
+  "/assets/hf_20260528_223739_7c229451-3f28-4050-b5ba-bc743e362b23_SCROLL.mp4",
+];
 
-/** Ersten Teil des ersten Clips ueberspringen (statische Frames). */
 const SKIP_FIRST_SECONDS = 0.4;
-
-/** Scroll-Hoehe bei einem einzigen Clip (ohne zweites Video) — Referenz fuer Proportion. */
 const BASE_SCROLL_VH = 600;
 
 export function ImmersiveExperience() {
   const [progress, setProgress] = useState(0);
-  const video1Ref = useRef<HTMLVideoElement>(null);
-  const video2Ref = useRef<HTMLVideoElement>(null);
-  const [duration1, setDuration1] = useState(0);
-  const [duration2, setDuration2] = useState(0);
+  const videoRefs = [
+    useRef<HTMLVideoElement>(null),
+    useRef<HTMLVideoElement>(null),
+    useRef<HTMLVideoElement>(null),
+  ];
+  const [durations, setDurations] = useState<number[]>([0, 0, 0]);
 
   const onScroll = (event: React.UIEvent<HTMLElement>) => {
     const target = event.currentTarget;
@@ -27,77 +28,92 @@ export function ImmersiveExperience() {
   };
 
   useEffect(() => {
-    const v1 = video1Ref.current;
-    const v2 = video2Ref.current;
-    if (!v1 || !v2) return;
-
-    const sync = () => {
-      if (Number.isFinite(v1.duration) && v1.duration > 0) {
-        setDuration1(v1.duration);
-      }
-      if (Number.isFinite(v2.duration) && v2.duration > 0) {
-        setDuration2(v2.duration);
-      }
+    const syncAll = () => {
+      setDurations((prev) => {
+        const next = [...prev];
+        videoRefs.forEach((ref, i) => {
+          const v = ref.current;
+          if (v && Number.isFinite(v.duration) && v.duration > 0) {
+            next[i] = v.duration;
+          }
+        });
+        return next;
+      });
     };
 
-    sync();
-    v1.addEventListener("loadedmetadata", sync);
-    v1.addEventListener("durationchange", sync);
-    v2.addEventListener("loadedmetadata", sync);
-    v2.addEventListener("durationchange", sync);
+    syncAll();
+    videoRefs.forEach((ref) => {
+      const v = ref.current;
+      if (!v) return;
+      v.addEventListener("loadedmetadata", syncAll);
+      v.addEventListener("durationchange", syncAll);
+    });
     return () => {
-      v1.removeEventListener("loadedmetadata", sync);
-      v1.removeEventListener("durationchange", sync);
-      v2.removeEventListener("loadedmetadata", sync);
-      v2.removeEventListener("durationchange", sync);
+      videoRefs.forEach((ref) => {
+        const v = ref.current;
+        if (!v) return;
+        v.removeEventListener("loadedmetadata", syncAll);
+        v.removeEventListener("durationchange", syncAll);
+      });
     };
   }, []);
 
   const timeline = useMemo(() => {
-    const usable1 = Math.max(0, duration1 - SKIP_FIRST_SECONDS);
-    const d2 = duration2;
-    const hasSecond = d2 > 0;
-    const totalUsable = hasSecond ? usable1 + d2 : usable1;
-    return { usable1, d2, hasSecond, totalUsable };
-  }, [duration1, duration2]);
+    const usable = durations.map((d, i) =>
+      i === 0 ? Math.max(0, d - SKIP_FIRST_SECONDS) : d
+    );
+    const totalUsable = usable.reduce((sum, u) => sum + u, 0);
+    return { usable, totalUsable };
+  }, [durations]);
 
-  /** Scroll-Hoehe: gleiches „Tempo“ pro Videosekunde wie bei nur einem Clip. */
   const scrollSpaceVh = useMemo(() => {
-    const { usable1, totalUsable } = timeline;
-    if (usable1 <= 0) return BASE_SCROLL_VH;
-    return BASE_SCROLL_VH * (totalUsable / usable1);
+    const { usable, totalUsable } = timeline;
+    if (usable[0] <= 0) return BASE_SCROLL_VH;
+    return BASE_SCROLL_VH * (totalUsable / usable[0]);
   }, [timeline]);
 
+  const activeIndex = useMemo(() => {
+    const { usable, totalUsable } = timeline;
+    if (totalUsable <= 0) return 0;
+    const t = progress * totalUsable;
+    let acc = 0;
+    for (let i = 0; i < usable.length; i++) {
+      if (t <= acc + usable[i]) return i;
+      acc += usable[i];
+    }
+    return usable.length - 1;
+  }, [progress, timeline]);
+
   useEffect(() => {
-    const v1 = video1Ref.current;
-    const v2 = video2Ref.current;
-    const { usable1, totalUsable, hasSecond } = timeline;
-    if (!v1 || !v2 || usable1 <= 0 || totalUsable <= 0) return;
+    const { usable, totalUsable } = timeline;
+    if (totalUsable <= 0) return;
 
     const t = progress * totalUsable;
+    let acc = 0;
 
-    if (!hasSecond || t <= usable1) {
-      const target1 = SKIP_FIRST_SECONDS + Math.min(t, usable1);
-      if (Math.abs(v1.currentTime - target1) > 0.02) {
-        v1.currentTime = target1;
+    for (let i = 0; i < VIDEOS.length; i++) {
+      const v = videoRefs[i].current;
+      if (!v) continue;
+
+      if (i < activeIndex) {
+        if (Math.abs(v.currentTime - durations[i]) > 0.05 && durations[i] > 0) {
+          v.currentTime = durations[i];
+        }
+      } else if (i === activeIndex) {
+        const localT = t - acc;
+        const offset = i === 0 ? SKIP_FIRST_SECONDS : 0;
+        const target = offset + Math.min(localT, usable[i]);
+        if (Math.abs(v.currentTime - target) > 0.02) {
+          v.currentTime = target;
+        }
+      } else {
+        if (Math.abs(v.currentTime) > 0.02) {
+          v.currentTime = 0;
+        }
       }
-      if (hasSecond && Math.abs(v2.currentTime) > 0.02) {
-        v2.currentTime = 0;
-      }
-    } else {
-      const target2 = t - usable1;
-      if (Math.abs(v1.currentTime - duration1) > 0.05 && duration1 > 0) {
-        v1.currentTime = duration1;
-      }
-      if (Math.abs(v2.currentTime - target2) > 0.02) {
-        v2.currentTime = target2;
-      }
+      acc += usable[i];
     }
-  }, [progress, timeline, duration1]);
-
-  const showFirst =
-    timeline.totalUsable <= 0 ||
-    progress * timeline.totalUsable <= timeline.usable1;
+  }, [progress, timeline, activeIndex, durations]);
 
   return (
     <section
@@ -106,22 +122,17 @@ export function ImmersiveExperience() {
       aria-label="Vida Immobilien"
     >
       <div className={styles.sticky}>
-        <video
-          ref={video1Ref}
-          className={`${styles.video} ${showFirst ? styles.videoOnTop : styles.videoBehind}`}
-          src={VIDEO_FIRST}
-          muted
-          playsInline
-          preload="auto"
-        />
-        <video
-          ref={video2Ref}
-          className={`${styles.video} ${showFirst ? styles.videoBehind : styles.videoOnTop}`}
-          src={VIDEO_SECOND}
-          muted
-          playsInline
-          preload="auto"
-        />
+        {VIDEOS.map((src, i) => (
+          <video
+            key={src}
+            ref={videoRefs[i]}
+            className={`${styles.video} ${i === activeIndex ? styles.videoOnTop : styles.videoBehind}`}
+            src={src}
+            muted
+            playsInline
+            preload="auto"
+          />
+        ))}
       </div>
       <div
         className={styles.scrollSpace}
