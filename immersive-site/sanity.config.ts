@@ -1,18 +1,20 @@
+"use client";
+
 import { defineConfig } from "sanity";
 import { structureTool } from "sanity/structure";
-import { schemaTypes } from "./src/sanity/schemaTypes";
+import { schema } from "@/sanity/schemaTypes";
+import { dataset, projectId } from "@/sanity/env";
 
-const projectId = process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ?? "yf2xmdi3";
-const dataset = process.env.NEXT_PUBLIC_SANITY_DATASET ?? "production";
-
+/**
+ * Sanity Studio Konfiguration.
+ * projectId fällt auf einen Platzhalter zurück, damit die App auch ohne
+ * konfiguriertes Projekt kompiliert. Das Studio (/studio) verbindet nur,
+ * wenn NEXT_PUBLIC_SANITY_PROJECT_ID gesetzt ist.
+ */
 export default defineConfig({
-  name: "vida-immobilien",
-  title: "VIDA Immobilien",
-  projectId,
-  dataset,
   basePath: "/studio",
+  projectId: projectId || "placeholder",
+  dataset,
+  schema,
   plugins: [structureTool()],
-  schema: {
-    types: schemaTypes,
-  },
 });

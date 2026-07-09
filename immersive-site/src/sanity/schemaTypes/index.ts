@@ -1,5 +1,8 @@
+import type { SchemaTypeDefinition } from "sanity";
 import { listing } from "./listing";
-import { pageContent } from "./pageContent";
 import { siteSettings } from "./siteSettings";
+import { pageContent } from "./pageContent";
 
-export const schemaTypes = [listing, pageContent, siteSettings];
+export const schema: { types: SchemaTypeDefinition[] } = {
+  types: [listing, siteSettings, pageContent],
+};

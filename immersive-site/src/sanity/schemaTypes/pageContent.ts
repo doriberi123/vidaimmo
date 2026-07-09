@@ -6,47 +6,34 @@ export const pageContent = defineType({
   type: "document",
   fields: [
     defineField({
-      name: "title",
-      title: "Titel",
+      name: "page",
+      title: "Seite",
       type: "string",
-      validation: (rule) => rule.required(),
+      options: {
+        list: [
+          { title: "Kaufberatung", value: "kaufberatung" },
+          { title: "Verkauf", value: "verkauf" },
+          { title: "Über uns", value: "ueber-uns" },
+          { title: "Kontakt", value: "kontakt" },
+        ],
+      },
     }),
+    defineField({ name: "eyebrow", title: "Eyebrow", type: "string" }),
+    defineField({ name: "heading", title: "Überschrift", type: "string" }),
+    defineField({ name: "intro", title: "Intro", type: "text", rows: 3 }),
     defineField({
-      name: "slug",
-      title: "URL-Slug",
-      type: "slug",
-      options: { source: "title", maxLength: 96 },
-      validation: (rule) => rule.required(),
-    }),
-    defineField({
-      name: "intro",
-      title: "Intro-Text",
-      type: "text",
-      rows: 3,
-    }),
-    defineField({
-      name: "body",
-      title: "Inhalt",
+      name: "sections",
+      title: "Sektionen",
       type: "array",
       of: [
-        { type: "block" },
         {
-          type: "image",
-          options: { hotspot: true },
-          fields: [{ name: "alt", title: "Alt-Text", type: "string" }],
+          type: "object",
+          fields: [
+            { name: "title", title: "Titel", type: "string" },
+            { name: "body", title: "Text", type: "text", rows: 3 },
+          ],
         },
       ],
-    }),
-    defineField({
-      name: "seoTitle",
-      title: "SEO Titel",
-      type: "string",
-    }),
-    defineField({
-      name: "seoDescription",
-      title: "SEO Beschreibung",
-      type: "text",
-      rows: 3,
     }),
   ],
 });

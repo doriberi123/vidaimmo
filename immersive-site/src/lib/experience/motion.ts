@@ -1,4 +1,5 @@
 import type { RoomId } from "./rooms";
+import { KEYFRAMES } from "./keyframes";
 
 export type ExperienceStage = "gate" | "approach" | "tour";
 
@@ -9,6 +10,8 @@ export type ExperienceState = {
   cameraPush: number;
   landingReveal: number;
   activeRoom: RoomId;
+  /** Aktueller Keyframe-Index (0..17) für Overlay-Sync. */
+  keyframeIndex: number;
 };
 
 const clamp = (value: number, min = 0, max = 1) =>
@@ -27,8 +30,17 @@ export function deriveExperienceState(progressRaw: number): ExperienceState {
     progress < 0.33 ? "gate" : progress < 0.66 ? "approach" : "tour";
 
   let activeRoom: RoomId = "foyer";
-  if (progress > 0.74 && progress <= 0.87) activeRoom = "leftRoom";
+  if (progress > 0.72 && progress <= 0.87) activeRoom = "leftRoom";
   if (progress > 0.87) activeRoom = "rightRoom";
+
+  const keyframeIndex = KEYFRAMES.reduce(
+    (closest, keyframe, index) =>
+      Math.abs(keyframe.progress - progress) <
+      Math.abs(KEYFRAMES[closest].progress - progress)
+        ? index
+        : closest,
+    0
+  );
 
   return {
     progress,
@@ -37,5 +49,6 @@ export function deriveExperienceState(progressRaw: number): ExperienceState {
     cameraPush,
     landingReveal,
     activeRoom,
+    keyframeIndex,
   };
 }

@@ -3,29 +3,20 @@
 import { useEffect, useRef } from "react";
 import type { RoomId } from "@/lib/experience/rooms";
 
-type AnalyticsBeaconProps = {
-  activeRoom: RoomId;
-  progress: number;
-};
-
-export function AnalyticsBeacon({ activeRoom, progress }: AnalyticsBeaconProps) {
-  const lastRoom = useRef<RoomId | null>(null);
+/**
+ * Feuert ein `vida:room-change` CustomEvent, sobald der aktive Raum wechselt.
+ * Andockpunkt für Analytics (z. B. GA4, Plausible, PostHog).
+ */
+export function AnalyticsBeacon({ activeRoom }: { activeRoom: RoomId }) {
+  const prev = useRef<RoomId | null>(null);
 
   useEffect(() => {
-    if (lastRoom.current === activeRoom) return;
-
-    lastRoom.current = activeRoom;
-    // Placeholder hook for GA/GTM event integration.
-    // Keeping this centralized prevents animation components from mixing tracking logic.
+    if (prev.current === activeRoom) return;
+    prev.current = activeRoom;
     window.dispatchEvent(
-      new CustomEvent("vida:room-change", {
-        detail: {
-          room: activeRoom,
-          progress: Number(progress.toFixed(3)),
-        },
-      }),
+      new CustomEvent("vida:room-change", { detail: { room: activeRoom } })
     );
-  }, [activeRoom, progress]);
+  }, [activeRoom]);
 
   return null;
 }

@@ -1,9 +1,15 @@
-import { createClient } from "next-sanity";
-import { apiVersion, dataset, projectId, useCdn } from "./env";
+import { createClient, type SanityClient } from "next-sanity";
+import { apiVersion, dataset, projectId, isSanityConfigured } from "./env";
 
-export const client = createClient({
-  apiVersion,
-  dataset,
-  projectId,
-  useCdn,
-});
+/**
+ * Sanity-Client – nur aktiv, wenn ein Projekt konfiguriert ist.
+ * Andernfalls `null`, damit die Content-Loader auf statische Daten zurückfallen.
+ */
+export const sanityClient: SanityClient | null = isSanityConfigured
+  ? createClient({
+      projectId,
+      dataset,
+      apiVersion,
+      useCdn: true,
+    })
+  : null;

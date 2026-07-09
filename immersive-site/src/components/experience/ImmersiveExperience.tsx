@@ -1,143 +1,215 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import styles from "./ImmersiveExperience.module.css";
+import { CLIPS } from "@/lib/experience/videos";
+import { deriveExperienceState } from "@/lib/experience/motion";
+import { ExperienceOverlay } from "./ExperienceOverlay";
+import { AnalyticsBeacon } from "./AnalyticsBeacon";
+import type { Listing } from "@/lib/content/listings";
 
-const VIDEOS = [
-  "/assets/VIDA_LOBBY_V2_SCROLL.mp4",
-  "/assets/hf_20260515_190916_e335e8ef-1dcd-4b5f-ae12-a340cec6ec55_SCROLL.mp4",
-  "/assets/hf_20260528_223739_7c229451-3f28-4050-b5ba-bc743e362b23_SCROLL.mp4",
-];
+/** Scroll-Weg pro Sekunde Videomaterial (vh). Höher = langsameres Scrubbing. */
+const SCRUB_VH_PER_SECOND = 36;
 
-const SKIP_FIRST_SECONDS = 0.4;
-const BASE_SCROLL_VH = 600;
+function clipIndexForProgress(
+  progress: number,
+  usable: number[],
+  totalUsable: number
+) {
+  if (totalUsable <= 0) return 0;
+  const time = progress * totalUsable;
+  let elapsed = 0;
+  for (let i = 0; i < usable.length; i++) {
+    if (time <= elapsed + usable[i]) return i;
+    elapsed += usable[i];
+  }
+  return Math.max(0, usable.length - 1);
+}
 
-export function ImmersiveExperience() {
+export function ImmersiveExperience({ listings = [] }: { listings?: Listing[] }) {
+  const rootRef = useRef<HTMLElement>(null);
+  const pinRef = useRef<HTMLDivElement>(null);
+  const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const [progress, setProgress] = useState(0);
-  const videoRefs = [
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-    useRef<HTMLVideoElement>(null),
-  ];
-  const [durations, setDurations] = useState<number[]>([0, 0, 0]);
+  const [durations, setDurations] = useState<number[]>(() => CLIPS.map(() => 0));
+  const progressRef = useRef(0);
+  const preloadedRef = useRef(new Set<number>([0]));
+  const uiSignatureRef = useRef("");
 
-  const onScroll = (event: React.UIEvent<HTMLElement>) => {
-    const target = event.currentTarget;
-    const range = target.scrollHeight - target.clientHeight;
-    setProgress(range > 0 ? target.scrollTop / range : 0);
-  };
-
+  // Video-Metadaten (Dauer) einsammeln
   useEffect(() => {
     const syncAll = () => {
       setDurations((prev) => {
         const next = [...prev];
-        videoRefs.forEach((ref, i) => {
-          const v = ref.current;
-          if (v && Number.isFinite(v.duration) && v.duration > 0) {
+        let changed = false;
+        videoRefs.current.forEach((v, i) => {
+          if (
+            v &&
+            Number.isFinite(v.duration) &&
+            v.duration > 0 &&
+            Math.abs(next[i] - v.duration) > 0.01
+          ) {
             next[i] = v.duration;
+            changed = true;
           }
         });
-        return next;
+        return changed ? next : prev;
       });
     };
-
     syncAll();
-    videoRefs.forEach((ref) => {
-      const v = ref.current;
+    const cleanups: Array<() => void> = [];
+    videoRefs.current.forEach((v) => {
       if (!v) return;
       v.addEventListener("loadedmetadata", syncAll);
       v.addEventListener("durationchange", syncAll);
-    });
-    return () => {
-      videoRefs.forEach((ref) => {
-        const v = ref.current;
-        if (!v) return;
+      cleanups.push(() => {
         v.removeEventListener("loadedmetadata", syncAll);
         v.removeEventListener("durationchange", syncAll);
       });
-    };
+    });
+    return () => cleanups.forEach((fn) => fn());
   }, []);
 
   const timeline = useMemo(() => {
-    const usable = durations.map((d, i) =>
-      i === 0 ? Math.max(0, d - SKIP_FIRST_SECONDS) : d
-    );
+    const usable = durations.map((d, i) => Math.max(0, d - CLIPS[i].skipStart));
     const totalUsable = usable.reduce((sum, u) => sum + u, 0);
     return { usable, totalUsable };
   }, [durations]);
 
-  const scrollSpaceVh = useMemo(() => {
-    const { usable, totalUsable } = timeline;
-    if (usable[0] <= 0) return BASE_SCROLL_VH;
-    return BASE_SCROLL_VH * (totalUsable / usable[0]);
-  }, [timeline]);
-
   const activeIndex = useMemo(() => {
     const { usable, totalUsable } = timeline;
-    if (totalUsable <= 0) return 0;
-    const t = progress * totalUsable;
-    let acc = 0;
-    for (let i = 0; i < usable.length; i++) {
-      if (t <= acc + usable[i]) return i;
-      acc += usable[i];
-    }
-    return usable.length - 1;
+    return clipIndexForProgress(progress, usable, totalUsable);
   }, [progress, timeline]);
 
-  useEffect(() => {
+  /** Durchgehendes Scrubbing über ALLE Clips: currentTime aus globalem Progress. */
+  const scrubTo = (p: number) => {
     const { usable, totalUsable } = timeline;
     if (totalUsable <= 0) return;
-
-    const t = progress * totalUsable;
+    const t = p * totalUsable;
     let acc = 0;
-
-    for (let i = 0; i < VIDEOS.length; i++) {
-      const v = videoRefs[i].current;
+    for (let i = 0; i < CLIPS.length; i++) {
+      const v = videoRefs.current[i];
       if (!v) continue;
-
-      if (i < activeIndex) {
-        if (Math.abs(v.currentTime - durations[i]) > 0.05 && durations[i] > 0) {
-          v.currentTime = durations[i];
-        }
-      } else if (i === activeIndex) {
-        const localT = t - acc;
-        const offset = i === 0 ? SKIP_FIRST_SECONDS : 0;
-        const target = offset + Math.min(localT, usable[i]);
-        if (Math.abs(v.currentTime - target) > 0.02) {
-          v.currentTime = target;
-        }
+      if (t < acc) {
+        if (Math.abs(v.currentTime) > 0.02) v.currentTime = 0;
+      } else if (t > acc + usable[i]) {
+        const end = CLIPS[i].skipStart + usable[i];
+        if (Math.abs(v.currentTime - end) > 0.05) v.currentTime = end;
       } else {
-        if (Math.abs(v.currentTime) > 0.02) {
-          v.currentTime = 0;
+        const target = CLIPS[i].skipStart + (t - acc);
+        if (Math.abs(v.currentTime - target) > 0.02) v.currentTime = target;
+
+        const localProgress = usable[i] > 0 ? (t - acc) / usable[i] : 0;
+        const nextIndex = i + 1;
+        const nextVideo = videoRefs.current[nextIndex];
+        if (
+          localProgress > 0.65 &&
+          nextVideo &&
+          !preloadedRef.current.has(nextIndex)
+        ) {
+          preloadedRef.current.add(nextIndex);
+          nextVideo.preload = "auto";
+          nextVideo.load();
         }
       }
       acc += usable[i];
     }
-  }, [progress, timeline, activeIndex, durations]);
+  };
+
+  // GSAP ScrollTrigger: gepinnte, durchgehend gescrubte Journey.
+  useEffect(() => {
+    const { totalUsable } = timeline;
+    const root = rootRef.current;
+    const pin = pinRef.current;
+    if (!root || !pin || totalUsable <= 0) return;
+
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    gsap.registerPlugin(ScrollTrigger);
+
+    const lengthPx = () =>
+      (totalUsable * SCRUB_VH_PER_SECOND * window.innerHeight) / 100;
+
+    const ctx = gsap.context(() => {
+      const st = ScrollTrigger.create({
+        trigger: root,
+        start: "top top",
+        end: () => `+=${lengthPx()}`,
+        pin: pin,
+        pinSpacing: true,
+        scrub: reduce ? false : 0.4,
+        invalidateOnRefresh: true,
+        onUpdate: (self) => {
+          const p = self.progress;
+          progressRef.current = p;
+          scrubTo(p);
+
+          const nextState = deriveExperienceState(p);
+          const clipIndex = clipIndexForProgress(
+            p,
+            timeline.usable,
+            totalUsable
+          );
+          const uiSignature = [
+            p < 0.06,
+            p > 0.2 && p < 0.95,
+            p >= 0.98,
+            nextState.activeRoom,
+            nextState.keyframeIndex,
+            clipIndex,
+          ].join(":");
+
+          if (uiSignature !== uiSignatureRef.current) {
+            uiSignatureRef.current = uiSignature;
+            setProgress(p);
+          }
+        },
+      });
+      return () => st.kill();
+    }, root);
+
+    // Initiales Frame setzen.
+    scrubTo(progressRef.current);
+    ScrollTrigger.refresh();
+
+    return () => ctx.revert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeline.totalUsable]);
+
+  const state = useMemo(() => deriveExperienceState(progress), [progress]);
 
   return (
     <section
+      ref={rootRef}
       className={styles.root}
-      onScroll={onScroll}
-      aria-label="Vida Immobilien"
+      aria-label="Vida Immobilien – Cinematic Journey"
     >
-      <div className={styles.sticky}>
-        {VIDEOS.map((src, i) => (
+      <div ref={pinRef} className={styles.sticky}>
+        {CLIPS.map((clip, i) => (
           <video
-            key={src}
-            ref={videoRefs[i]}
-            className={`${styles.video} ${i === activeIndex ? styles.videoOnTop : styles.videoBehind}`}
-            src={src}
+            key={clip.id}
+            ref={(el) => {
+              videoRefs.current[i] = el;
+            }}
+            className={`${styles.video} ${
+              i === activeIndex ? styles.videoOnTop : styles.videoBehind
+            }`}
+            src={clip.src}
+            poster={
+              i === 0
+                ? "/assets/cinematic-keyframes/K01-tore-geschlossen.jpg"
+                : undefined
+            }
             muted
             playsInline
-            preload="auto"
+            preload={i === 0 ? "auto" : "metadata"}
           />
         ))}
+        <div className={styles.vignette} />
+        <ExperienceOverlay state={state} listings={listings} />
       </div>
-      <div
-        className={styles.scrollSpace}
-        style={{ height: `${scrollSpaceVh}vh` }}
-      />
+      <AnalyticsBeacon activeRoom={state.activeRoom} />
     </section>
   );
 }

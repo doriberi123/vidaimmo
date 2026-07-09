@@ -1,15 +1,11 @@
 .root {
   position: relative;
-  width: 100vw;
-  height: 100dvh;
-  overflow-y: scroll;
-  overflow-x: hidden;
+  width: 100%;
   background: #000;
 }
 
+/* Wird von GSAP ScrollTrigger gepinnt (pin-spacer erzeugt die Scroll-Länge). */
 .sticky {
-  position: sticky;
-  top: 0;
   height: 100dvh;
   width: 100%;
   overflow: hidden;
@@ -26,12 +22,454 @@
 
 .videoOnTop {
   z-index: 2;
+  opacity: 1;
 }
 
 .videoBehind {
   z-index: 1;
+  opacity: 0;
 }
 
-.scrollSpace {
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   pointer-events: none;
+  background:
+    radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(3, 8, 20, 0.55) 100%),
+    linear-gradient(180deg, rgba(3, 8, 20, 0.5) 0%, transparent 22%, transparent 68%, rgba(3, 8, 20, 0.82) 100%);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.overlay :global(a),
+.overlay :global(button) {
+  pointer-events: auto;
+}
+
+.scrollHint {
+  position: absolute;
+  bottom: 2.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  color: rgba(238, 242, 251, 0.75);
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.mouse {
+  width: 22px;
+  height: 36px;
+  border: 1px solid rgba(216, 189, 140, 0.6);
+  border-radius: 12px;
+  position: relative;
+}
+
+.mouse::after {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 3px;
+  height: 7px;
+  border-radius: 2px;
+  background: #d8bd8c;
+  transform: translateX(-50%);
+  animation: wheel 1.6s var(--ease-cinematic) infinite;
+}
+
+@keyframes wheel {
+  0% { opacity: 0; transform: translate(-50%, 0); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, 12px); }
+}
+
+.progressRail {
+  position: absolute;
+  right: clamp(1rem, 3vw, 2.4rem);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.tick {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(238, 242, 251, 0.25);
+  transition: all 0.4s var(--ease-cinematic);
+}
+
+.tickActive {
+  background: #d8bd8c;
+  box-shadow: 0 0 12px rgba(216, 189, 140, 0.8);
+  transform: scale(1.6);
+}
+
+/* --- Journey-Panel: editoriale, imposante Kapitel-Karte --- */
+.panel {
+  position: absolute;
+  left: clamp(1.2rem, 5.5vw, 4.5rem);
+  bottom: clamp(3.5rem, 12vh, 7.5rem);
+  max-width: min(560px, 88vw);
+}
+
+/* Riesige Ghost-Kapitelnummer als Bühnen-Element */
+.panelIndex {
+  position: absolute;
+  left: -0.12em;
+  bottom: 100%;
+  margin-bottom: -0.18em;
+  font-family: var(--font-display, serif);
+  font-weight: 500;
+  font-size: clamp(6rem, 18vw, 13rem);
+  line-height: 0.8;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(216, 189, 140, 0.32);
+  opacity: 0.9;
+  pointer-events: none;
+  animation: panelIndexIn 1s var(--ease-cinematic) both;
+}
+
+.panelInner {
+  position: relative;
+  padding-left: clamp(1rem, 2vw, 1.6rem);
+  animation: panelIn 0.85s var(--ease-cinematic) both;
+}
+
+/* Zarter Scrim, damit der Text auf jedem Frame lesbar bleibt */
+.panelInner::before {
+  content: "";
+  position: absolute;
+  left: -2.5rem;
+  top: -3rem;
+  right: -3rem;
+  bottom: -2.5rem;
+  z-index: -1;
+  background: radial-gradient(
+    120% 120% at 0% 100%,
+    rgba(3, 8, 20, 0.72) 0%,
+    rgba(3, 8, 20, 0.42) 40%,
+    transparent 78%
+  );
+  filter: blur(2px);
+}
+
+.panelEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: #e6cfa0;
+}
+
+.panelRule {
+  display: inline-block;
+  width: clamp(28px, 5vw, 52px);
+  height: 1px;
+  background: linear-gradient(90deg, #d8bd8c, rgba(216, 189, 140, 0));
+}
+
+.panelTitle {
+  font-family: var(--font-display, serif);
+  font-weight: 500;
+  color: #f6f4ef;
+  font-size: clamp(2.6rem, 6.4vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.01em;
+  margin: 0.7rem 0 0.9rem;
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.45);
+}
+
+.panelText {
+  max-width: 40ch;
+  font-size: clamp(0.98rem, 1.3vw, 1.12rem);
+  line-height: 1.6;
+  color: rgba(246, 244, 239, 0.82);
+}
+
+.panelCta {
+  margin-top: 1.6rem;
+}
+
+/* --- Endframe: Inserate AUF dem Board des letzten Video-Frames --- */
+.boardListings {
+  position: absolute;
+  top: 10.5%;
+  right: 7%;
+  bottom: 9.5%;
+  left: 7%;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 1120px;
+  margin-inline: auto;
+  pointer-events: auto;
+  animation: panelIn 0.7s var(--ease-cinematic) both;
+}
+
+.boardHead {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding-bottom: clamp(0.65rem, 1.2vw, 1rem);
+  border-bottom: 1px solid rgba(20, 20, 25, 0.14);
+}
+
+.boardEyebrow {
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #8a6a38;
+}
+
+.boardTitle {
+  margin: 0.3rem 0 0;
+  font-family: var(--font-display, serif);
+  font-weight: 500;
+  font-size: clamp(1.6rem, 3.4vw, 2.8rem);
+  line-height: 1;
+  color: #14181f;
+}
+
+.boardAll {
+  flex-shrink: 0;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: #6b5426;
+  border-bottom: 1px solid rgba(107, 84, 38, 0.3);
+  padding-bottom: 2px;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.boardAll:hover {
+  color: #14181f;
+  border-color: #14181f;
+}
+
+.boardAll:focus-visible,
+.boardCard:focus-visible {
+  outline: 2px solid #8a6a38;
+  outline-offset: 3px;
+}
+
+.boardScroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-height: calc(100% - 76px);
+  margin-top: clamp(0.9rem, 1.8vw, 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  padding: 0.2rem 0.4rem 0.4rem 0.2rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(138, 106, 56, 0.5) transparent;
+}
+
+.boardScroll::-webkit-scrollbar {
+  width: 7px;
+}
+
+.boardScroll::-webkit-scrollbar-thumb {
+  background: rgba(138, 106, 56, 0.45);
+  border-radius: 4px;
+}
+
+.boardGrid {
+  display: grid;
+  gap: clamp(0.8rem, 1.4vw, 1.3rem);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.boardCard {
+  display: block;
+  overflow: hidden;
+  border: 1px solid rgba(42, 35, 26, 0.14);
+  border-radius: 10px;
+  background: rgba(250, 248, 243, 0.94);
+  box-shadow: 0 8px 22px rgba(22, 18, 12, 0.1);
+  transition:
+    transform 0.25s var(--ease-cinematic),
+    box-shadow 0.25s var(--ease-cinematic),
+    border-color 0.25s ease;
+}
+
+.boardCard:hover {
+  transform: translateY(-3px);
+  border-color: rgba(138, 106, 56, 0.5);
+  box-shadow: 0 14px 30px rgba(22, 18, 12, 0.16);
+}
+
+.boardMedia {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.boardMedia img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.45s var(--ease-cinematic);
+}
+
+.boardCard:hover .boardMedia img {
+  transform: scale(1.05);
+}
+
+.boardStatus {
+  position: absolute;
+  left: 0.75rem;
+  top: 0.75rem;
+  padding: 0.26rem 0.66rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.statusAvailable {
+  color: #1f7a55;
+  border: 1px solid rgba(31, 122, 85, 0.35);
+}
+
+.statusReserved {
+  color: #9a6a12;
+  border: 1px solid rgba(154, 106, 18, 0.35);
+}
+
+.statusSold {
+  color: #6b6b70;
+  border: 1px solid rgba(107, 107, 112, 0.3);
+}
+
+.boardBody {
+  padding: clamp(0.8rem, 1.2vw, 1.1rem);
+}
+
+.boardLocation {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #8a6a38;
+}
+
+.boardCardTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  margin: 0.35rem 0 0;
+  font-family: var(--font-display, serif);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.15;
+  color: #14181f;
+}
+
+.boardMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(20, 20, 25, 0.1);
+}
+
+.boardPrice {
+  font-family: var(--font-display, serif);
+  font-size: 1rem;
+  color: #6b5426;
+}
+
+.boardDims {
+  font-size: 0.72rem;
+  color: #55555c;
+  text-align: right;
+}
+
+@media (max-width: 820px) {
+  .boardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .boardListings {
+    top: 8%;
+    right: 5%;
+    bottom: 7%;
+    left: 5%;
+    justify-content: flex-start;
+  }
+
+  .boardHead {
+    align-items: center;
+  }
+
+  .boardEyebrow {
+    display: none;
+  }
+
+  .boardTitle {
+    font-size: clamp(1.35rem, 7vw, 2rem);
+  }
+
+  .boardAll {
+    font-size: 0.7rem;
+  }
+
+  .boardScroll {
+    max-height: calc(100% - 58px);
+  }
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes panelIndexIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 0.9; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelInner,
+  .panelIndex,
+  .boardListings,
+  .boardCard,
+  .boardMedia img {
+    animation: none;
+    transition: none;
+  }
 }
